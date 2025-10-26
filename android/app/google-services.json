@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "676110780293",
+    "project_id": "krishiconnectnpl",
+    "storage_bucket": "krishiconnectnpl.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:676110780293:android:66768fd1a13a53c8d926ec",
+        "android_client_info": {
+          "package_name": "com.krishiconnect.npl"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "676110780293-igef23diapbg3unims30hkua9obiple8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyUj0tqDa5xqfjQX6n3gAHiKPZmbFruN4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "676110780293-igef23diapbg3unims30hkua9obiple8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "676110780293-cc4ol8nu0nqn50842uf2eic7acmqlk64.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.krishiconnect.npl"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
