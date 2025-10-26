@@ -18,23 +18,31 @@ class DatabaseService {
   Stream<List<Product>> listenFarmerProducts(String farmerId) {
     return _productsRef
         .where('farmerId', isEqualTo: farmerId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList(),
-        );
+        .map((snapshot) {
+      final products =
+          snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList();
+      products.sort(
+        (a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+      );
+      return products;
+    });
   }
 
   Stream<List<Product>> listenAvailableProducts() {
     return _productsRef
         .where('status', isEqualTo: InventoryStatus.inStock.key)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList(),
-        );
+        .map((snapshot) {
+      final products =
+          snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList();
+      products.sort(
+        (a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+      );
+      return products;
+    });
   }
 
   Future<String> createProduct({

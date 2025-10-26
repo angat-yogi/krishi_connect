@@ -1,0 +1,12 @@
+{
+  "FIREBASE_PROJECT_ID": "krishiconnectnpl",
+  "FIREBASE_STORAGE_BUCKET": "krishiconnectnpl.firebasestorage.app",
+  "FIREBASE_ANDROID_API_KEY": "AIzaSyCyUj0tqDa5xqfjQX6n3gAHiKPZmbFruN4",
+  "FIREBASE_ANDROID_APP_ID": "1:676110780293:android:66768fd1a13a53c8d926ec",
+  "FIREBASE_ANDROID_MESSAGING_SENDER_ID": "676110780293",
+  "FIREBASE_IOS_API_KEY": "AIzaSyByiCcz-imZwYfnlwdxM8-lnjj37OZWhn4",
+  "FIREBASE_IOS_APP_ID": "1:676110780293:ios:2d3bea428efe537bd926ec",
+  "FIREBASE_IOS_MESSAGING_SENDER_ID": "676110780293",
+  "FIREBASE_IOS_CLIENT_ID": "676110780293-cc4ol8nu0nqn50842uf2eic7acmqlk64.apps.googleusercontent.com",
+  "FIREBASE_IOS_BUNDLE_ID": "com.krishiconnect.npl"
+}

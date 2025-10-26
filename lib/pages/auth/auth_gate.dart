@@ -32,8 +32,8 @@ class AuthGate extends StatelessWidget {
     }
 
     return switch (profile.role) {
-      UserRole.farmer => FarmerDashboardPage(profile: profile),
-      UserRole.shopkeeper => ShopkeeperDashboardPage(profile: profile),
+      UserRole.farmer => const FarmerDashboardPage(),
+      UserRole.shopkeeper => const ShopkeeperDashboardPage(),
       null => const Scaffold(body: LoadingView()),
     };
   }

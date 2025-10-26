@@ -5,14 +5,12 @@ import 'package:provider/provider.dart';
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
 import '../../widgets/loading_view.dart';
+import '../../widgets/profile_drawer.dart';
 
 class ShopkeeperDashboardPage extends StatefulWidget {
-  const ShopkeeperDashboardPage({super.key, required this.profile});
-
-  final UserProfile profile;
+  const ShopkeeperDashboardPage({super.key});
 
   @override
   State<ShopkeeperDashboardPage> createState() =>
@@ -20,18 +18,44 @@ class ShopkeeperDashboardPage extends StatefulWidget {
 }
 
 class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   Widget build(BuildContext context) {
+    final profile = context.watch<UserProfile?>();
+
+    if (profile == null) {
+      return const Scaffold(
+          body: LoadingView(message: 'Loading your profile...'));
+    }
+
+    if (profile.role != UserRole.shopkeeper) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Shopkeeper Dashboard')),
+        body: const Center(
+            child: Text('Switch to a shopkeeper account to view this page.')),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        key: _scaffoldKey,
+        endDrawer: const ProfileDrawer(),
         appBar: AppBar(
           title: const Text('Shopkeeper Dashboard'),
           actions: [
-            IconButton(
-              tooltip: 'Sign out',
-              onPressed: () => context.read<AuthService>().signOut(),
-              icon: const Icon(Icons.logout),
+            TextButton.icon(
+              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+              icon: const Icon(Icons.account_circle_outlined),
+              label: Text(
+                profileHeaderLabel(profile),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
           bottom: const TabBar(
@@ -43,8 +67,8 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
         ),
         body: TabBarView(
           children: [
-            _BrowseTab(profile: widget.profile),
-            _OrdersTab(profile: widget.profile),
+            _BrowseTab(shopkeeperId: profile.uid),
+            _OrdersTab(shopkeeperId: profile.uid),
           ],
         ),
       ),
@@ -53,9 +77,9 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
 }
 
 class _BrowseTab extends StatelessWidget {
-  const _BrowseTab({required this.profile});
+  const _BrowseTab({required this.shopkeeperId});
 
-  final UserProfile profile;
+  final String shopkeeperId;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +87,9 @@ class _BrowseTab extends StatelessWidget {
     return StreamBuilder<List<Product>>(
       stream: db.listenAvailableProducts(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorState(error: snapshot.error);
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingView();
         }
@@ -87,7 +114,8 @@ class _BrowseTab extends StatelessWidget {
                   '${product.quantity} ${product.unit ?? ''} • NPR ${product.price.toStringAsFixed(2)}',
                 ),
                 trailing: FilledButton(
-                  onPressed: () => _showOrderSheet(context, profile, product),
+                  onPressed: () =>
+                      _showOrderSheet(context, product, shopkeeperId),
                   child: const Text('Order'),
                 ),
               ),
@@ -100,8 +128,8 @@ class _BrowseTab extends StatelessWidget {
 
   Future<void> _showOrderSheet(
     BuildContext context,
-    UserProfile profile,
     Product product,
+    String shopkeeperId,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     final quantityController = TextEditingController(text: '1');
@@ -127,14 +155,12 @@ class _BrowseTab extends StatelessWidget {
                 try {
                   await sheetContext.read<DatabaseService>().placeOrder(
                         product: product,
-                        shopkeeperId: profile.uid,
+                        shopkeeperId: shopkeeperId,
                         quantity: int.parse(quantityController.text),
                       );
                   Navigator.of(sheetContext).pop();
                   messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Order placed successfully!'),
-                    ),
+                    const SnackBar(content: Text('Order placed successfully!')),
                   );
                 } catch (_) {
                   messenger.showSnackBar(
@@ -201,16 +227,19 @@ class _BrowseTab extends StatelessWidget {
 }
 
 class _OrdersTab extends StatelessWidget {
-  const _OrdersTab({required this.profile});
+  const _OrdersTab({required this.shopkeeperId});
 
-  final UserProfile profile;
+  final String shopkeeperId;
 
   @override
   Widget build(BuildContext context) {
     final db = context.watch<DatabaseService>();
     return StreamBuilder<List<Order>>(
-      stream: db.listenOrdersForShopkeeper(profile.uid),
+      stream: db.listenOrdersForShopkeeper(shopkeeperId),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorState(error: snapshot.error);
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingView();
         }
@@ -264,6 +293,41 @@ class _EmptyState extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({this.error});
+
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            const SizedBox(height: 12),
+            Text(
+              'Something went wrong while loading data.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$error',
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

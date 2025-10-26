@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Firebase configuration files
+config/firebase_options.*.json
+!config/firebase_options.sample.json

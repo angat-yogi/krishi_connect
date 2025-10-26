@@ -1,16 +1,52 @@
 # krishi_connect
 
-A new Flutter project.
+KrishiConnect connects local farmers and shopkeepers with role-based dashboards backed by Firebase Authentication, Firestore, and Storage.
 
-## Getting Started
+## Prerequisites
 
-This project is a starting point for a Flutter application.
+- Flutter (stable channel)
+- Firebase project with iOS and Android apps registered
+- `google-services.json` in `android/app/`
+- `GoogleService-Info.plist` in `ios/Runner/`
 
-A few resources to get you started if this is your first Flutter project:
+## Configure Firebase secrets
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+To avoid committing API keys, runtime values are read from dart-defines.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Copy the sample config and fill in the values from the Firebase console:
+
+   ```bash
+   cp config/firebase_options.sample.json config/firebase_options.dev.json
+   # edit config/firebase_options.dev.json with your Firebase keys
+   ```
+
+2. Run the app using `--dart-define-from-file` (Flutter 3.7+):
+
+   ```bash
+   flutter run --dart-define-from-file=config/firebase_options.dev.json
+   ```
+
+   For older Flutter versions, pass each value manually:
+
+   ```bash
+   flutter run \
+     --dart-define=FIREBASE_PROJECT_ID=your-project-id \
+     --dart-define=FIREBASE_ANDROID_API_KEY=... \
+     --dart-define=FIREBASE_ANDROID_APP_ID=... \
+     --dart-define=FIREBASE_ANDROID_MESSAGING_SENDER_ID=... \
+     --dart-define=FIREBASE_IOS_API_KEY=... \
+     --dart-define=FIREBASE_IOS_APP_ID=... \
+     --dart-define=FIREBASE_IOS_MESSAGING_SENDER_ID=... \
+     --dart-define=FIREBASE_IOS_CLIENT_ID=... \
+     --dart-define=FIREBASE_IOS_BUNDLE_ID=com.krishiconnect.npl
+   ```
+
+If any value is missing, the app shows a configuration screen explaining what to supply.
+
+## Running tests
+
+```
+flutter test
+```
+
+Widget tests are currently skipped until Firebase mocks are added.

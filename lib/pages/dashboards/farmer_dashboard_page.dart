@@ -5,32 +5,56 @@ import 'package:provider/provider.dart';
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
 import '../../widgets/loading_view.dart';
+import '../../widgets/profile_drawer.dart';
 
 class FarmerDashboardPage extends StatefulWidget {
-  const FarmerDashboardPage({super.key, required this.profile});
-
-  final UserProfile profile;
+  const FarmerDashboardPage({super.key});
 
   @override
   State<FarmerDashboardPage> createState() => _FarmerDashboardPageState();
 }
 
 class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   @override
   Widget build(BuildContext context) {
+    final profile = context.watch<UserProfile?>();
+
+    if (profile == null) {
+      return const Scaffold(
+          body: LoadingView(message: 'Loading your profile...'));
+    }
+
+    if (profile.role != UserRole.farmer) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Farmer Dashboard')),
+        body: const Center(
+            child: Text('Switch to a farmer account to view this page.')),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        key: _scaffoldKey,
+        endDrawer: const ProfileDrawer(),
         appBar: AppBar(
           title: const Text('Farmer Dashboard'),
           actions: [
-            IconButton(
-              tooltip: 'Sign out',
-              onPressed: () => context.read<AuthService>().signOut(),
-              icon: const Icon(Icons.logout),
+            TextButton.icon(
+              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+              icon: const Icon(Icons.account_circle_outlined),
+              label: Text(
+                profileHeaderLabel(profile),
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
           bottom: const TabBar(
@@ -42,12 +66,12 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
         ),
         body: TabBarView(
           children: [
-            _InventoryTab(profile: widget.profile),
-            _OrdersTab(profile: widget.profile),
+            _InventoryTab(farmerId: profile.uid),
+            _OrdersTab(farmerId: profile.uid),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _showProductForm(context),
+          onPressed: () => _showProductForm(context, profile),
           icon: const Icon(Icons.add),
           label: const Text('Add Inventory'),
         ),
@@ -55,7 +79,8 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
     );
   }
 
-  Future<void> _showProductForm(BuildContext context) async {
+  Future<void> _showProductForm(
+      BuildContext context, UserProfile profile) async {
     final db = context.read<DatabaseService>();
     final messenger = ScaffoldMessenger.of(context);
     final nameController = TextEditingController();
@@ -83,7 +108,7 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
                 setModalState(() => isSubmitting = true);
                 try {
                   await db.createProduct(
-                    farmerId: widget.profile.uid,
+                    farmerId: profile.uid,
                     name: nameController.text.trim(),
                     quantity: int.parse(quantityController.text),
                     price: double.parse(priceController.text),
@@ -189,16 +214,19 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
 }
 
 class _InventoryTab extends StatelessWidget {
-  const _InventoryTab({required this.profile});
+  const _InventoryTab({required this.farmerId});
 
-  final UserProfile profile;
+  final String farmerId;
 
   @override
   Widget build(BuildContext context) {
     final db = context.watch<DatabaseService>();
     return StreamBuilder<List<Product>>(
-      stream: db.listenFarmerProducts(profile.uid),
+      stream: db.listenFarmerProducts(farmerId),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorState(error: snapshot.error);
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingView();
         }
@@ -237,25 +265,27 @@ class _InventoryTab extends StatelessWidget {
                   onSelected: (value) {
                     switch (value) {
                       case 'in_stock':
-                        db.updateProduct(
-                          productId: product.id,
-                          status: InventoryStatus.inStock,
-                        );
+                        context.read<DatabaseService>().updateProduct(
+                              productId: product.id,
+                              status: InventoryStatus.inStock,
+                            );
                         break;
                       case 'pending':
-                        db.updateProduct(
-                          productId: product.id,
-                          status: InventoryStatus.pending,
-                        );
+                        context.read<DatabaseService>().updateProduct(
+                              productId: product.id,
+                              status: InventoryStatus.pending,
+                            );
                         break;
                       case 'sold':
-                        db.updateProduct(
-                          productId: product.id,
-                          status: InventoryStatus.sold,
-                        );
+                        context.read<DatabaseService>().updateProduct(
+                              productId: product.id,
+                              status: InventoryStatus.sold,
+                            );
                         break;
                       case 'delete':
-                        db.deleteProduct(product.id);
+                        context
+                            .read<DatabaseService>()
+                            .deleteProduct(product.id);
                         break;
                     }
                   },
@@ -292,16 +322,19 @@ class _InventoryTab extends StatelessWidget {
 }
 
 class _OrdersTab extends StatelessWidget {
-  const _OrdersTab({required this.profile});
+  const _OrdersTab({required this.farmerId});
 
-  final UserProfile profile;
+  final String farmerId;
 
   @override
   Widget build(BuildContext context) {
     final db = context.watch<DatabaseService>();
     return StreamBuilder<List<Order>>(
-      stream: db.listenOrdersForFarmer(profile.uid),
+      stream: db.listenOrdersForFarmer(farmerId),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorState(error: snapshot.error);
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingView();
         }
@@ -383,6 +416,41 @@ class _EmptyState extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({this.error});
+
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            const SizedBox(height: 12),
+            Text(
+              'Something went wrong while loading data.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$error',
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
