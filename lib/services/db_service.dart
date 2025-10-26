@@ -91,23 +91,31 @@ class DatabaseService {
   Stream<List<Order>> listenOrdersForFarmer(String farmerId) {
     return _ordersRef
         .where('farmerId', isEqualTo: farmerId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
-        );
+        .map((snapshot) {
+      final orders =
+          snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+      orders.sort(
+        (a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+      );
+      return orders;
+    });
   }
 
   Stream<List<Order>> listenOrdersForShopkeeper(String shopkeeperId) {
     return _ordersRef
         .where('shopkeeperId', isEqualTo: shopkeeperId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
-        );
+        .map((snapshot) {
+      final orders =
+          snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+      orders.sort(
+        (a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+      );
+      return orders;
+    });
   }
 
   Future<String> placeOrder({
