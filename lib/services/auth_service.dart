@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/user_model.dart';
@@ -25,7 +26,28 @@ class AuthService {
         yield null;
         continue;
       }
-      yield await fetchUserProfile(user.uid);
+      try {
+        yield await fetchUserProfile(user.uid);
+      } on FirebaseException catch (e, stackTrace) {
+        debugPrint('Failed to load user profile: ${e.code} ${e.message}');
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: e,
+          stack: stackTrace,
+          library: 'AuthService',
+          informationCollector: () => [
+            DiagnosticsNode.message('Fetching profile for uid=${user.uid}'),
+          ],
+        ));
+        yield null;
+      } catch (e, stackTrace) {
+        debugPrint('Unexpected error loading profile: $e');
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: e,
+          stack: stackTrace,
+          library: 'AuthService',
+        ));
+        yield null;
+      }
     }
   }
 
