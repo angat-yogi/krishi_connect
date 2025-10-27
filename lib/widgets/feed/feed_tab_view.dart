@@ -421,6 +421,7 @@ class _PendingThreadCard extends StatelessWidget {
     final otherName =
         thread.participantNames[otherId] ?? 'KrishiConnect partner';
     final preview = thread.lastMessage ?? 'Awaiting your approval to chat.';
+    final alreadyBlocked = profile.blockedUsers.contains(otherId);
 
     return Card(
       child: Padding(
@@ -449,9 +450,13 @@ class _PendingThreadCard extends StatelessWidget {
                   label: const Text('Approve'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: () => _block(context, otherId),
-                  icon: const Icon(Icons.block),
-                  label: const Text('Block'),
+                  onPressed: () => alreadyBlocked
+                      ? _unblock(context, otherId)
+                      : _block(context, otherId),
+                  icon: Icon(
+                    alreadyBlocked ? Icons.lock_open : Icons.block,
+                  ),
+                  label: Text(alreadyBlocked ? 'Unblock' : 'Block'),
                 ),
                 TextButton(
                   onPressed: () => _viewProfile(context, otherId),
@@ -494,6 +499,27 @@ class _PendingThreadCard extends StatelessWidget {
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text('Could not block user: $e')),
+      );
+    }
+  }
+
+  Future<void> _unblock(BuildContext context, String otherId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthService>();
+    final db = context.read<DatabaseService>();
+    try {
+      await auth.unblockUser(otherId);
+      await db.markThreadUnblocked(
+        threadId: thread.id,
+        blockerId: profile.uid,
+      );
+      final name = thread.participantNames[otherId] ?? 'user';
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unblocked $name.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not unblock user: $e')),
       );
     }
   }

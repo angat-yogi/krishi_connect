@@ -5,12 +5,17 @@ import 'package:provider/provider.dart';
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
+import '../../models/search_result.dart';
 import '../../services/db_service.dart';
+import '../../services/search_history_store.dart';
+import '../../services/search_service.dart';
 import '../../pages/feed/create_feed_post_page.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
 import '../../widgets/feed/feed_tab_view.dart';
 import '../../widgets/users/user_directory_tab.dart';
+import '../../widgets/search/global_search_delegate.dart';
+import '../../widgets/search/search_navigation.dart';
 
 class ShopkeeperDashboardPage extends StatefulWidget {
   const ShopkeeperDashboardPage({super.key});
@@ -52,6 +57,11 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
               titleSpacing: 0,
               title: const _AppLogo(),
               actions: [
+                IconButton(
+                  tooltip: 'Search marketplace',
+                  onPressed: () => _openSearch(profile),
+                  icon: const Icon(Icons.search),
+                ),
                 TextButton.icon(
                   onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
                   icon: const Icon(Icons.account_circle_outlined),
@@ -110,6 +120,24 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _openSearch(UserProfile profile) async {
+    final result = await showSearch<SearchResultItem?>(
+      context: context,
+      delegate: GlobalSearchDelegate(
+        currentUser: profile,
+        searchService: SearchService(),
+        historyStore: SearchHistoryStore(),
+      ),
+    );
+    if (!mounted || result == null) return;
+    await handleSearchSelection(
+      context,
+      result: result,
+      databaseService: context.read<DatabaseService>(),
+      currentUser: profile,
     );
   }
 
@@ -443,27 +471,14 @@ class _AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.agriculture, color: Color(0xFF2E7D32)),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'KrishiConnect',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-      ],
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.agriculture, color: Color(0xFF2E7D32)),
     );
   }
 }
