@@ -19,6 +19,7 @@ import '../../widgets/feed/feed_tab_view.dart';
 import '../../widgets/users/user_directory_tab.dart';
 import '../../widgets/search/global_search_delegate.dart';
 import '../../widgets/search/search_navigation.dart';
+import '../../widgets/search/search_bar_button.dart';
 
 class FarmerDashboardPage extends StatefulWidget {
   const FarmerDashboardPage({super.key});
@@ -53,14 +54,20 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
         key: _scaffoldKey,
         endDrawer: const ProfileDrawer(),
         appBar: AppBar(
-          titleSpacing: 0,
-          title: const _AppLogo(),
+          titleSpacing: 12,
+          title: Row(
+            children: [
+              const _AppLogo(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SearchBarButton(
+                  onTap: () => _openSearch(profile),
+                  placeholder: 'Search marketplace…',
+                ),
+              ),
+            ],
+          ),
           actions: [
-            IconButton(
-              tooltip: 'Search marketplace',
-              onPressed: () => _openSearch(profile),
-              icon: const Icon(Icons.search),
-            ),
             TextButton.icon(
               onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
               icon: const Icon(Icons.account_circle_outlined),
