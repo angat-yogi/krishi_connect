@@ -4,6 +4,7 @@ import '../models/chat_models.dart';
 import '../models/feed_post.dart';
 import '../models/order_model.dart';
 import '../models/product_model.dart';
+import '../models/user_model.dart';
 
 class DatabaseService {
   DatabaseService({FirebaseFirestore? firestore})
@@ -160,6 +161,23 @@ class DatabaseService {
     });
   }
 
+  Stream<List<FeedPost>> listenFeedPostsByAuthor(String uid) {
+    return _feedPostsRef.where('authorId', isEqualTo: uid).snapshots().map(
+      (snapshot) {
+        final posts = snapshot.docs.map(FeedPost.fromFirestore).toList();
+        posts.sort(
+          (a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+        );
+        return posts;
+      },
+    );
+  }
+
+  Future<void> deleteFeedPost(String postId) {
+    return _feedPostsRef.doc(postId).delete();
+  }
+
   Stream<List<Order>> listenOrdersForFarmer(String farmerId) {
     return _ordersRef
         .where('farmerId', isEqualTo: farmerId)
@@ -289,5 +307,36 @@ class DatabaseService {
   String _threadId(String a, String b) {
     final sorted = [a, b]..sort();
     return sorted.join('_');
+  }
+
+  Stream<UserProfile?> listenUserProfile(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return UserProfile.fromMap(uid, doc.data());
+    });
+  }
+
+  Stream<List<UserProfile>> listenUsersByRole(UserRole role) {
+    return _firestore
+        .collection('users')
+        .where('role', isEqualTo: role.key)
+        .snapshots()
+        .map((snapshot) {
+      final profiles = snapshot.docs
+          .map((doc) => UserProfile.fromMap(doc.id, doc.data()))
+          .toList();
+      profiles.sort((a, b) {
+        String label(UserProfile profile) {
+          final display = profile.displayName;
+          if (display != null && display.trim().isNotEmpty) {
+            return display.trim().toLowerCase();
+          }
+          return profile.email.toLowerCase();
+        }
+
+        return label(a).compareTo(label(b));
+      });
+      return profiles;
+    });
   }
 }

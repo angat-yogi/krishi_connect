@@ -97,3 +97,21 @@ DateTime? _dateTimeFrom(dynamic value) {
   if (value is DateTime) return value;
   return DateTime.tryParse(value.toString());
 }
+
+String profileDisplayLabel(UserProfile profile) {
+  final name = profile.displayName;
+  if (name != null && name.trim().isNotEmpty) {
+    return name.trim();
+  }
+  return profile.email;
+}
+
+String profileRoleLabel(UserProfile profile) {
+  return profile.role?.label ?? 'Role not set';
+}
+
+String profileHeaderLabel(UserProfile profile) {
+  final name = profileDisplayLabel(profile);
+  final role = profile.role?.label ?? 'Set role';
+  return '$name ($role)';
+}

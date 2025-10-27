@@ -8,13 +8,12 @@ import 'package:provider/provider.dart';
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
-import '../../models/feed_post.dart';
-import '../../models/chat_models.dart';
 import '../../services/db_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
-import '../messages/chat_page.dart';
+import '../../widgets/feed/feed_tab_view.dart';
+import '../../widgets/users/user_directory_tab.dart';
 
 class FarmerDashboardPage extends StatefulWidget {
   const FarmerDashboardPage({super.key});
@@ -44,7 +43,7 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
     }
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         key: _scaffoldKey,
         endDrawer: const ProfileDrawer(),
@@ -71,16 +70,24 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
               Tab(icon: Icon(Icons.dynamic_feed_outlined), text: 'Feed'),
               Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Inventory'),
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Orders'),
+              Tab(icon: Icon(Icons.store_mall_directory_outlined), text: 'Sellers'),
               Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Messages'),
             ],
           ),
         ),
         body: TabBarView(
           children: [
-            _FeedTab(profile: profile),
+            FeedTabView(profile: profile),
             _InventoryTab(farmerId: profile.uid),
             _OrdersTab(farmerId: profile.uid),
-            _MessagesTab(profile: profile),
+            UserDirectoryTab(
+              currentUser: profile,
+              roleToShow: UserRole.shopkeeper,
+              emptyMessage:
+                  'No shopkeepers are connected yet. Invite sellers to join KrishiConnect.',
+              emptyIcon: Icons.storefront_outlined,
+            ),
+            MessagesTabView(profile: profile),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
@@ -509,321 +516,6 @@ class _OrdersTab extends StatelessWidget {
   }
 }
 
-class _FeedTab extends StatelessWidget {
-  const _FeedTab({required this.profile});
-
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.watch<DatabaseService>();
-    return StreamBuilder<List<FeedPost>>(
-      stream: db.listenFeedPosts(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _ErrorState(error: snapshot.error);
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingView();
-        }
-        final posts = snapshot.data ?? [];
-        if (posts.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.dynamic_feed_outlined,
-            message:
-                'Market is quiet for now. Check back soon for new requests.',
-          );
-        }
-
-        return ListView.separated(
-          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-          itemCount: posts.length,
-          separatorBuilder: (_, __) => SizedBox(height: 16.h),
-          itemBuilder: (context, index) {
-            final post = posts[index];
-            return _FeedPostCard(profile: profile, post: post);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _MessagesTab extends StatelessWidget {
-  const _MessagesTab({required this.profile});
-
-  final UserProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.watch<DatabaseService>();
-    return StreamBuilder<List<ChatThread>>(
-      stream: db.listenThreads(profile.uid),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _ErrorState(error: snapshot.error);
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingView();
-        }
-        final threads = snapshot.data ?? [];
-        if (threads.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.chat_bubble_outline,
-            message:
-                'No conversations yet. Reply to a feed or message a seller to get started.',
-          );
-        }
-
-        return ListView.separated(
-          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-          itemCount: threads.length,
-          separatorBuilder: (_, __) => SizedBox(height: 12.h),
-          itemBuilder: (context, index) {
-            final thread = threads[index];
-            final otherId = thread.participants
-                .firstWhere((id) => id != profile.uid, orElse: () => profile.uid);
-            final otherName =
-                thread.participantNames[otherId] ?? 'Conversation';
-
-            return Card(
-              child: ListTile(
-                title: Text(otherName),
-                subtitle: Text(thread.lastMessage ?? 'Tap to chat'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ChatPage(
-                        threadId: thread.id,
-                        currentUserId: profile.uid,
-                        otherUserId: otherId,
-                        otherDisplayName: otherName,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _FeedPostCard extends StatelessWidget {
-  const _FeedPostCard({required this.profile, required this.post});
-
-  final UserProfile profile;
-  final FeedPost post;
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.read<DatabaseService>();
-    final theme = Theme.of(context);
-    final createdText = post.createdAt != null
-        ? 'Posted ${timeAgo(post.createdAt!)}'
-        : 'Posted recently';
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor:
-                      theme.colorScheme.primary.withOpacity(0.15),
-                  child: const Icon(Icons.storefront, color: Colors.green),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post.title,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text('${post.authorName} • ${post.location}',
-                          style: theme.textTheme.bodySmall),
-                      Text(createdText, style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              post.description,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              children: [
-                TextButton.icon(
-                  onPressed: () => _promptComment(context, db),
-                  icon: const Icon(Icons.mode_comment_outlined),
-                  label: const Text('Comment'),
-                ),
-                TextButton.icon(
-                  onPressed: () => _openChat(context, db),
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Message seller'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            StreamBuilder<List<FeedComment>>(
-              stream: db.listenFeedComments(post.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox();
-                }
-                final comments = snapshot.data ?? [];
-                if (comments.isEmpty) {
-                  return Text(
-                    'No comments yet. Be the first to reach out!',
-                    style: theme.textTheme.bodySmall,
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Responses',
-                      style: theme.textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    ...comments.take(3).map(
-                      (comment) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: RichText(
-                          text: TextSpan(
-                            style: theme.textTheme.bodyMedium,
-                            children: [
-                              TextSpan(
-                                text: '${comment.authorName}: ',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              TextSpan(text: comment.text),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (comments.length > 3)
-                      Text(
-                        '+${comments.length - 3} more replies',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _promptComment(
-    BuildContext context,
-    DatabaseService db,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final controller = TextEditingController();
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Respond to ${post.authorName}',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Let them know you can help…',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () async {
-                  final text = controller.text.trim();
-                  if (text.isEmpty) return;
-                  await db.addFeedComment(
-                    postId: post.id,
-                    authorId: profile.uid,
-                    authorName: profileDisplayLabel(profile),
-                    text: text,
-                  );
-                  if (context.mounted) {
-                    Navigator.of(sheetContext).pop();
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Comment sent.')),
-                    );
-                  }
-                },
-                child: const Text('Send'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _openChat(
-    BuildContext context,
-    DatabaseService db,
-  ) async {
-    final participantNames = <String, String>{
-      profile.uid: profileDisplayLabel(profile),
-      post.authorId: post.authorName,
-    };
-    final threadId = await db.createOrGetThread(
-      currentUid: profile.uid,
-      otherUid: post.authorId,
-      participantNames: participantNames,
-    );
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatPage(
-          threadId: threadId,
-          currentUserId: profile.uid,
-          otherUserId: post.authorId,
-          otherDisplayName: post.authorName,
-        ),
-      ),
-    );
-  }
-}
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.icon, required this.message});
 
@@ -964,16 +656,4 @@ class _AppLogo extends StatelessWidget {
       ],
     );
   }
-}
-
-String timeAgo(DateTime date) {
-  final diff = DateTime.now().difference(date);
-  if (diff.inDays >= 1) {
-    return '${diff.inDays}d ago';
-  } else if (diff.inHours >= 1) {
-    return '${diff.inHours}h ago';
-  } else if (diff.inMinutes >= 1) {
-    return '${diff.inMinutes}m ago';
-  }
-  return 'just now';
 }

@@ -276,19 +276,3 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     );
   }
 }
-
-String profileDisplayLabel(UserProfile profile) {
-  return profile.displayName?.isNotEmpty == true
-      ? profile.displayName!
-      : profile.email;
-}
-
-String profileRoleLabel(UserProfile profile) {
-  return profile.role?.label ?? 'Role not set';
-}
-
-String profileHeaderLabel(UserProfile profile) {
-  final name = profileDisplayLabel(profile);
-  final role = profile.role?.label ?? 'Set role';
-  return '$name ($role)';
-}

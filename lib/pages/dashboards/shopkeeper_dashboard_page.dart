@@ -6,8 +6,10 @@ import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
 import '../../services/db_service.dart';
+import '../../pages/feed/create_feed_post_page.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
+import '../../widgets/feed/feed_tab_view.dart';
 
 class ShopkeeperDashboardPage extends StatefulWidget {
   const ShopkeeperDashboardPage({super.key});
@@ -38,39 +40,73 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
     }
 
     return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        key: _scaffoldKey,
-        endDrawer: const ProfileDrawer(),
-        appBar: AppBar(
-          title: const Text('Shopkeeper Dashboard'),
-          actions: [
-            TextButton.icon(
-              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-              icon: const Icon(Icons.account_circle_outlined),
-              label: Text(
-                profileHeaderLabel(profile),
-                style: Theme.of(context)
-                    .textTheme
-                    .labelLarge
-                    ?.copyWith(color: Theme.of(context).colorScheme.primary),
-                overflow: TextOverflow.ellipsis,
+      length: 5,
+      child: Builder(
+        builder: (context) {
+          final controller = DefaultTabController.of(context)!;
+          return Scaffold(
+            key: _scaffoldKey,
+            endDrawer: const ProfileDrawer(),
+            appBar: AppBar(
+              titleSpacing: 0,
+              title: const _AppLogo(),
+              actions: [
+                TextButton.icon(
+                  onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                  icon: const Icon(Icons.account_circle_outlined),
+                  label: Text(
+                    profileHeaderLabel(profile),
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(
+                            color: Theme.of(context).colorScheme.primary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              bottom: const TabBar(
+                isScrollable: true,
+                tabs: [
+                  Tab(icon: Icon(Icons.dynamic_feed_outlined), text: 'Feed'),
+                  Tab(icon: Icon(Icons.list_alt_outlined), text: 'My Posts'),
+                  Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Browse'),
+                  Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Orders'),
+                  Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Messages'),
+                ],
               ),
             ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Browse'),
-              Tab(text: 'My Orders'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _BrowseTab(shopkeeperId: profile.uid),
-            _OrdersTab(shopkeeperId: profile.uid),
-          ],
-        ),
+            body: TabBarView(
+              children: [
+                FeedTabView(profile: profile),
+                FeedTabView(profile: profile, ownPostsOnly: true),
+                _BrowseTab(shopkeeperId: profile.uid),
+                _OrdersTab(shopkeeperId: profile.uid),
+                MessagesTabView(profile: profile),
+              ],
+            ),
+            floatingActionButton: AnimatedBuilder(
+              animation: controller,
+              builder: (context, _) {
+                final isFeedTab = controller.index == 0 || controller.index == 1;
+                if (!isFeedTab) return const SizedBox.shrink();
+                return FloatingActionButton.extended(
+                  onPressed: () => _openCreateFeed(profile),
+                  icon: const Icon(Icons.post_add),
+                  label: const Text('New request'),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openCreateFeed(UserProfile profile) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateFeedPostPage(profile: profile),
       ),
     );
   }
@@ -390,4 +426,34 @@ String _orderLabel(String id) {
   if (id.isEmpty) return 'UNKNOWN';
   final length = id.length >= 6 ? 6 : id.length;
   return id.substring(0, length).toUpperCase();
+}
+
+class _AppLogo extends StatelessWidget {
+  const _AppLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.agriculture, color: Color(0xFF2E7D32)),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'KrishiConnect',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
 }
