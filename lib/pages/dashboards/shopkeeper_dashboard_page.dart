@@ -10,6 +10,7 @@ import '../../pages/feed/create_feed_post_page.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
 import '../../widgets/feed/feed_tab_view.dart';
+import '../../widgets/users/user_directory_tab.dart';
 
 class ShopkeeperDashboardPage extends StatefulWidget {
   const ShopkeeperDashboardPage({super.key});
@@ -40,7 +41,7 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Builder(
         builder: (context) {
           final controller = DefaultTabController.of(context)!;
@@ -72,6 +73,7 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
                   Tab(icon: Icon(Icons.list_alt_outlined), text: 'My Posts'),
                   Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Browse'),
                   Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Orders'),
+                  Tab(icon: Icon(Icons.agriculture_outlined), text: 'Farmers'),
                   Tab(icon: Icon(Icons.chat_bubble_outline), text: 'Messages'),
                 ],
               ),
@@ -82,13 +84,21 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
                 FeedTabView(profile: profile, ownPostsOnly: true),
                 _BrowseTab(shopkeeperId: profile.uid),
                 _OrdersTab(shopkeeperId: profile.uid),
+                UserDirectoryTab(
+                  currentUser: profile,
+                  roleToShow: UserRole.farmer,
+                  emptyMessage:
+                      'No farmers are visible yet. Encourage producers to join KrishiConnect.',
+                  emptyIcon: Icons.agriculture_outlined,
+                ),
                 MessagesTabView(profile: profile),
               ],
             ),
             floatingActionButton: AnimatedBuilder(
               animation: controller,
               builder: (context, _) {
-                final isFeedTab = controller.index == 0 || controller.index == 1;
+                final isFeedTab =
+                    controller.index == 0 || controller.index == 1;
                 if (!isFeedTab) return const SizedBox.shrink();
                 return FloatingActionButton.extended(
                   onPressed: () => _openCreateFeed(profile),

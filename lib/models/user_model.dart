@@ -34,6 +34,8 @@ class UserProfile {
     this.photoUrl,
     this.location,
     this.createdAt,
+    this.following = const [],
+    this.blockedUsers = const [],
   });
 
   final String uid;
@@ -43,6 +45,8 @@ class UserProfile {
   final String? photoUrl;
   final String? location;
   final DateTime? createdAt;
+  final List<String> following;
+  final List<String> blockedUsers;
 
   Map<String, dynamic> toMap() {
     return {
@@ -52,6 +56,8 @@ class UserProfile {
       'location': location,
       'role': role?.key,
       'createdAt': createdAt,
+      'following': following,
+      'blockedUsers': blockedUsers,
     };
   }
 
@@ -68,6 +74,8 @@ class UserProfile {
       location: data['location'] as String?,
       role: UserRoleX.fromKey(data['role'] as String?),
       createdAt: _dateTimeFrom(data['createdAt']),
+      following: _stringList(data['following']),
+      blockedUsers: _stringList(data['blockedUsers']),
     );
   }
 
@@ -78,6 +86,8 @@ class UserProfile {
     String? photoUrl,
     String? location,
     DateTime? createdAt,
+    List<String>? following,
+    List<String>? blockedUsers,
   }) {
     return UserProfile(
       uid: uid,
@@ -87,6 +97,8 @@ class UserProfile {
       photoUrl: photoUrl ?? this.photoUrl,
       location: location ?? this.location,
       createdAt: createdAt ?? this.createdAt,
+      following: following ?? this.following,
+      blockedUsers: blockedUsers ?? this.blockedUsers,
     );
   }
 }
@@ -114,4 +126,11 @@ String profileHeaderLabel(UserProfile profile) {
   final name = profileDisplayLabel(profile);
   final role = profile.role?.label ?? 'Set role';
   return '$name ($role)';
+}
+
+List<String> _stringList(dynamic value) {
+  if (value is Iterable) {
+    return value.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+  }
+  return const [];
 }

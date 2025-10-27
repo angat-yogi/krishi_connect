@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import '../../models/chat_models.dart';
 import '../../models/feed_post.dart';
 import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
 import '../../widgets/loading_view.dart';
-import '../../widgets/profile_drawer.dart';
 import '../../pages/feed/create_feed_post_page.dart';
 import '../../pages/messages/chat_page.dart';
 import '../../pages/profile/user_profile_page.dart';
@@ -276,22 +276,31 @@ class FeedPostCard extends StatelessWidget {
       profile.uid: profileDisplayLabel(profile),
       post.authorId: post.authorName,
     };
-    final threadId = await db.createOrGetThread(
-      currentUid: profile.uid,
-      otherUid: post.authorId,
-      participantNames: participantNames,
-    );
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatPage(
-          threadId: threadId,
-          currentUserId: profile.uid,
-          otherUserId: post.authorId,
-          otherDisplayName: post.authorName,
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final threadId = await db.createOrGetThread(
+        currentUid: profile.uid,
+        otherUid: post.authorId,
+        participantNames: participantNames,
+      );
+      if (!context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            threadId: threadId,
+            currentUserId: profile.uid,
+            otherUserId: post.authorId,
+            otherDisplayName: post.authorName,
+          ),
         ),
-      ),
-    );
+      );
+    } on MessagingException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to start chat: $e')),
+      );
+    }
   }
 }
 
@@ -316,7 +325,17 @@ class MessagesTabView extends StatelessWidget {
           return const LoadingView();
         }
         final threads = snapshot.data ?? [];
-        if (threads.isEmpty) {
+        final pending = threads
+            .where((thread) => thread.isPendingFor(profile.uid))
+            .toList();
+        final blocked =
+            threads.where((thread) => thread.blockedBy.isNotEmpty).toList();
+        final active = threads
+            .where((thread) =>
+                !thread.isPendingFor(profile.uid) && thread.blockedBy.isEmpty)
+            .toList();
+
+        if (pending.isEmpty && active.isEmpty && blocked.isEmpty) {
           return const _ErrorNotice(
             icon: Icons.chat_bubble_outline,
             message:
@@ -324,39 +343,359 @@ class MessagesTabView extends StatelessWidget {
           );
         }
 
-        return ListView.separated(
+        return ListView(
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-          itemCount: threads.length,
-          separatorBuilder: (_, __) => SizedBox(height: 12.h),
-          itemBuilder: (context, index) {
-            final thread = threads[index];
-            final otherId = thread.participants
-                .firstWhere((id) => id != profile.uid, orElse: () => profile.uid);
-            final otherName =
-                thread.participantNames[otherId] ?? 'Conversation';
-
-            return Card(
-              child: ListTile(
-                title: Text(otherName),
-                subtitle: Text(thread.lastMessage ?? 'Tap to chat'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ChatPage(
-                        threadId: thread.id,
-                        currentUserId: profile.uid,
-                        otherUserId: otherId,
-                        otherDisplayName: otherName,
-                      ),
-                    ),
-                  );
-                },
+          children: [
+            if (pending.isNotEmpty) ...[
+              const _MessagesSectionHeader(title: 'Needing approval'),
+              SizedBox(height: 8.h),
+              ...pending.map(
+                (thread) => _PendingThreadCard(
+                  profile: profile,
+                  thread: thread,
+                ),
               ),
-            );
-          },
+              SizedBox(height: 24.h),
+            ],
+            if (active.isNotEmpty) ...[
+              const _MessagesSectionHeader(title: 'Conversations'),
+              SizedBox(height: 8.h),
+              ...active.map(
+                (thread) => _ConversationCard(
+                  profile: profile,
+                  thread: thread,
+                ),
+              ),
+              SizedBox(height: 24.h),
+            ],
+            if (blocked.isNotEmpty) ...[
+              const _MessagesSectionHeader(title: 'Blocked conversations'),
+              SizedBox(height: 8.h),
+              ...blocked.map(
+                (thread) => _ConversationCard(
+                  profile: profile,
+                  thread: thread,
+                  showBlockedState: true,
+                ),
+              ),
+            ],
+          ],
         );
       },
+    );
+  }
+}
+
+class _MessagesSectionHeader extends StatelessWidget {
+  const _MessagesSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context)
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+class _PendingThreadCard extends StatelessWidget {
+  const _PendingThreadCard({
+    required this.profile,
+    required this.thread,
+  });
+
+  final UserProfile profile;
+  final ChatThread thread;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final otherId = thread.otherParticipant(profile.uid);
+    final otherName =
+        thread.participantNames[otherId] ?? 'KrishiConnect partner';
+    final preview = thread.lastMessage ?? 'Awaiting your approval to chat.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              otherName,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              preview,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => _approve(context),
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Approve'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _block(context, otherId),
+                  icon: const Icon(Icons.block),
+                  label: const Text('Block'),
+                ),
+                TextButton(
+                  onPressed: () => _viewProfile(context, otherId),
+                  child: const Text('View profile'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _approve(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context
+          .read<DatabaseService>()
+          .approveThread(threadId: thread.id, approverId: profile.uid);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Conversation approved.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not approve: $e')),
+      );
+    }
+  }
+
+  Future<void> _block(BuildContext context, String otherId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final auth = context.read<AuthService>();
+      await auth.blockUser(otherId);
+      await context
+          .read<DatabaseService>()
+          .markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
+      final name = thread.participantNames[otherId] ?? 'user';
+      messenger.showSnackBar(
+        SnackBar(content: Text('Blocked $name.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not block user: $e')),
+      );
+    }
+  }
+
+  void _viewProfile(BuildContext context, String uid) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+    );
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  const _ConversationCard({
+    required this.profile,
+    required this.thread,
+    this.showBlockedState = false,
+  });
+
+  final UserProfile profile;
+  final ChatThread thread;
+  final bool showBlockedState;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final otherId = thread.otherParticipant(profile.uid);
+    final otherName =
+        thread.participantNames[otherId] ?? 'KrishiConnect partner';
+    final blockedByMe = thread.blockedBy.contains(profile.uid);
+    final blockedByOther =
+        thread.blockedBy.isNotEmpty && !blockedByMe && showBlockedState;
+    final subtitle = blockedByMe
+        ? 'You blocked this user. Unblock to resume the chat.'
+        : blockedByOther
+            ? 'This user blocked you.'
+            : thread.lastMessage ?? 'Tap to chat';
+
+    return Card(
+      color: blockedByOther ? theme.colorScheme.surfaceVariant : null,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    blockedByMe
+                        ? '$otherName (blocked)'
+                        : blockedByOther
+                            ? '$otherName (blocked you)'
+                            : otherName,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (!blockedByOther)
+                  IconButton(
+                    tooltip:
+                        blockedByMe ? 'Unblock user' : 'Conversation options',
+                    onPressed: blockedByMe
+                        ? () => _unblock(context, otherId)
+                        : () => _showMenu(context, otherId),
+                    icon: Icon(
+                      blockedByMe ? Icons.lock_open : Icons.more_vert,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (!blockedByMe && !blockedByOther)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _openChat(context, otherId, otherName),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Open chat'),
+                ),
+              )
+            else if (blockedByOther)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => _viewProfile(context, otherId),
+                  child: const Text('View profile'),
+                ),
+              ),
+            if (blockedByMe)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => _unblock(context, otherId),
+                  child: const Text('Unblock'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context, String otherId) async {
+    final selection = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('View profile'),
+              onTap: () => Navigator.of(sheetContext).pop('profile'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.block),
+              title: const Text('Block user'),
+              onTap: () => Navigator.of(sheetContext).pop('block'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.of(sheetContext).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    switch (selection) {
+      case 'profile':
+        _viewProfile(context, otherId);
+        break;
+      case 'block':
+        _block(context, otherId);
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _block(BuildContext context, String otherId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final auth = context.read<AuthService>();
+      await auth.blockUser(otherId);
+      await context
+          .read<DatabaseService>()
+          .markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
+      final name = thread.participantNames[otherId] ?? 'user';
+      messenger.showSnackBar(
+        SnackBar(content: Text('Blocked $name.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not block user: $e')),
+      );
+    }
+  }
+
+  Future<void> _unblock(BuildContext context, String otherId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final auth = context.read<AuthService>();
+      await auth.unblockUser(otherId);
+      await context
+          .read<DatabaseService>()
+          .markThreadUnblocked(threadId: thread.id, blockerId: profile.uid);
+      final name = thread.participantNames[otherId] ?? 'user';
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unblocked $name.')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not unblock user: $e')),
+      );
+    }
+  }
+
+  void _openChat(
+    BuildContext context,
+    String otherId,
+    String otherName,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          threadId: thread.id,
+          currentUserId: profile.uid,
+          otherUserId: otherId,
+          otherDisplayName: otherName,
+        ),
+      ),
+    );
+  }
+
+  void _viewProfile(BuildContext context, String uid) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
     );
   }
 }

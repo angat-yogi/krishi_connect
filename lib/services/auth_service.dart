@@ -33,6 +33,8 @@ class AuthService {
         displayName: user.displayName,
         photoUrl: user.photoURL,
         role: null,
+        following: const [],
+        blockedUsers: const [],
       );
 
       final docRef = _firestore.collection('users').doc(user.uid);
@@ -249,6 +251,59 @@ class AuthService {
     );
   }
 
+  Future<void> followUser(String targetUid) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || targetUid.isEmpty || targetUid == user.uid) return;
+
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'following': FieldValue.arrayUnion([targetUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> unfollowUser(String targetUid) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || targetUid.isEmpty || targetUid == user.uid) return;
+
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'following': FieldValue.arrayRemove([targetUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> blockUser(String targetUid) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || targetUid.isEmpty || targetUid == user.uid) return;
+
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'blockedUsers': FieldValue.arrayUnion([targetUid]),
+        'following': FieldValue.arrayRemove([targetUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> unblockUser(String targetUid) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || targetUid.isEmpty || targetUid == user.uid) return;
+
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'blockedUsers': FieldValue.arrayRemove([targetUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> _ensureUserDocument(
     User user, {
     String? displayName,
@@ -298,6 +353,8 @@ class AuthService {
         'photoUrl': user.photoURL,
         'location': null,
         'createdAt': FieldValue.serverTimestamp(),
+        'following': const <String>[],
+        'blockedUsers': const <String>[],
       },
       SetOptions(merge: true),
     );

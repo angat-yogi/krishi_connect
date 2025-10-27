@@ -7,6 +7,8 @@ class ChatThread {
     required this.participantNames,
     this.lastMessage,
     this.updatedAt,
+    this.pendingParticipants = const [],
+    this.blockedBy = const [],
   });
 
   final String id;
@@ -14,6 +16,8 @@ class ChatThread {
   final Map<String, String> participantNames;
   final String? lastMessage;
   final DateTime? updatedAt;
+  final List<String> pendingParticipants;
+  final List<String> blockedBy;
 
   factory ChatThread.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
@@ -26,6 +30,22 @@ class ChatThread {
           .map((key, value) => MapEntry(key, value as String)),
       lastMessage: data['lastMessage'] as String?,
       updatedAt: _dateTimeFrom(data['updatedAt']),
+      pendingParticipants:
+          _stringList(data['pendingParticipants'] ?? const <String>[]),
+      blockedBy: _stringList(data['blockedBy'] ?? const <String>[]),
+    );
+  }
+
+  bool isPendingFor(String uid) => pendingParticipants.contains(uid);
+
+  bool isBlockedFor(String uid) => blockedBy.contains(uid);
+
+  bool get isBlocked => blockedBy.isNotEmpty;
+
+  String otherParticipant(String uid) {
+    return participants.firstWhere(
+      (participant) => participant != uid,
+      orElse: () => uid,
     );
   }
 }
@@ -61,4 +81,11 @@ DateTime? _dateTimeFrom(dynamic value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
   return DateTime.tryParse(value.toString());
+}
+
+List<String> _stringList(dynamic value) {
+  if (value is Iterable) {
+    return value.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+  }
+  return const [];
 }

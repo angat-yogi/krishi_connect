@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
 import '../loading_view.dart';
 import '../../pages/messages/chat_page.dart';
@@ -73,8 +74,13 @@ class _DirectoryCard extends StatelessWidget {
   final UserProfile currentUser;
   final UserProfile partner;
 
+  bool get _isFollowing => currentUser.following.contains(partner.uid);
+
+  bool get _isBlocked => currentUser.blockedUsers.contains(partner.uid);
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -130,26 +136,42 @@ class _DirectoryCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (_isBlocked)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Chip(
+                  label: const Text('Blocked'),
+                  backgroundColor:
+                      theme.colorScheme.errorContainer.withOpacity(0.6),
+                ),
+              ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 8,
               children: [
+                FilledButton.icon(
+                  onPressed:
+                      _isBlocked ? null : () => _startConversation(context),
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Message'),
+                ),
                 OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => UserProfilePage(uid: partner.uid),
-                      ),
-                    );
-                  },
+                  onPressed: () => _viewProfile(context),
                   icon: const Icon(Icons.person_outline),
                   label: const Text('View profile'),
                 ),
-                FilledButton.icon(
-                  onPressed: () => _startConversation(context),
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Message'),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _toggleFollow(context, follow: !_isFollowing),
+                  icon: Icon(_isFollowing ? Icons.check : Icons.add),
+                  label: Text(_isFollowing ? 'Following' : 'Follow'),
+                ),
+                TextButton.icon(
+                  onPressed: () =>
+                      _toggleBlock(context, unblock: _isBlocked),
+                  icon: Icon(_isBlocked ? Icons.lock_open : Icons.block),
+                  label: Text(_isBlocked ? 'Unblock' : 'Block'),
                 ),
               ],
             ),
@@ -160,24 +182,110 @@ class _DirectoryCard extends StatelessWidget {
   }
 
   Future<void> _startConversation(BuildContext context) async {
+    if (_isBlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unblock this user before starting a conversation.'),
+        ),
+      );
+      return;
+    }
     final db = context.read<DatabaseService>();
-    final threadId = await db.createOrGetThread(
-      currentUid: currentUser.uid,
-      otherUid: partner.uid,
-      participantNames: {
-        currentUser.uid: _displayLabel(currentUser),
-        partner.uid: _displayLabel(partner),
-      },
-    );
-    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final threadId = await db.createOrGetThread(
+        currentUid: currentUser.uid,
+        otherUid: partner.uid,
+        participantNames: {
+          currentUser.uid: _displayLabel(currentUser),
+          partner.uid: _displayLabel(partner),
+        },
+      );
+      if (!context.mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            threadId: threadId,
+            currentUserId: currentUser.uid,
+            otherUserId: partner.uid,
+            otherDisplayName: _displayLabel(partner),
+          ),
+        ),
+      );
+    } on MessagingException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to start conversation: $e')),
+      );
+    }
+  }
+
+  Future<void> _toggleFollow(
+    BuildContext context, {
+    required bool follow,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final auth = context.read<AuthService>();
+      if (follow) {
+        await auth.followUser(partner.uid);
+        messenger.showSnackBar(
+          SnackBar(content: Text('Following ${_displayLabel(partner)}.')),
+        );
+      } else {
+        await auth.unfollowUser(partner.uid);
+        messenger.showSnackBar(
+          SnackBar(content: Text('Unfollowed ${_displayLabel(partner)}.')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to update follow status: $e')),
+      );
+    }
+  }
+
+  Future<void> _toggleBlock(
+    BuildContext context, {
+    required bool unblock,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final auth = context.read<AuthService>();
+      final db = context.read<DatabaseService>();
+      final threadId = ([currentUser.uid, partner.uid]..sort()).join('_');
+
+      if (unblock) {
+        await auth.unblockUser(partner.uid);
+        await db.markThreadUnblocked(
+          threadId: threadId,
+          blockerId: currentUser.uid,
+        );
+        messenger.showSnackBar(
+          SnackBar(content: Text('Unblocked ${_displayLabel(partner)}.')),
+        );
+      } else {
+        await auth.blockUser(partner.uid);
+        await db.markThreadBlocked(
+          threadId: threadId,
+          blockerId: currentUser.uid,
+        );
+        messenger.showSnackBar(
+          SnackBar(content: Text('Blocked ${_displayLabel(partner)}.')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to update block status: $e')),
+      );
+    }
+  }
+
+  void _viewProfile(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChatPage(
-          threadId: threadId,
-          currentUserId: currentUser.uid,
-          otherUserId: partner.uid,
-          otherDisplayName: _displayLabel(partner),
-        ),
+        builder: (_) => UserProfilePage(uid: partner.uid),
       ),
     );
   }
