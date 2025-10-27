@@ -52,6 +52,7 @@ class DatabaseService {
     required double price,
     InventoryStatus status = InventoryStatus.inStock,
     String? unit,
+    String? imageUrl,
   }) async {
     final docRef = await _productsRef.add({
       'farmerId': farmerId,
@@ -60,6 +61,7 @@ class DatabaseService {
       'price': price,
       'status': status.key,
       'unit': unit,
+      'imageUrl': imageUrl,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -73,6 +75,7 @@ class DatabaseService {
     double? price,
     InventoryStatus? status,
     String? unit,
+    String? imageUrl,
   }) {
     return _productsRef.doc(productId).update({
       if (name != null) 'name': name,
@@ -80,6 +83,7 @@ class DatabaseService {
       if (price != null) 'price': price,
       if (status != null) 'status': status.key,
       if (unit != null) 'unit': unit,
+      if (imageUrl != null) 'imageUrl': imageUrl,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

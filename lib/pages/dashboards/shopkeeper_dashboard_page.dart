@@ -109,6 +109,7 @@ class _BrowseTab extends StatelessWidget {
             final product = products[index];
             return Card(
               child: ListTile(
+                leading: _ProductThumbnail(imageUrl: product.imageUrl),
                 title: Text(product.name),
                 subtitle: Text(
                   '${product.quantity} ${product.unit ?? ''} • NPR ${product.price.toStringAsFixed(2)}',
@@ -328,6 +329,58 @@ class _ErrorState extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProductThumbnail extends StatelessWidget {
+  const _ProductThumbnail({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          'Coming\nSoon',
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Colors.grey[600]),
+        ),
+      ),
+    );
+
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      return placeholder;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl!,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => placeholder,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return SizedBox(
+            width: 64,
+            height: 64,
+            child:
+                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        },
       ),
     );
   }

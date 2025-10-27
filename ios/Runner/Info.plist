@@ -65,5 +65,9 @@
 		<string>com.google.sso</string>
 		<string>com.googleusercontent.apps.676110780293-cc4ol8nu0nqn50842uf2eic7acmqlk64</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow KrishiConnect to access your photo library to upload profile and product images.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow KrishiConnect to capture photos for your profile and inventory.</string>
 </dict>
 </plist>

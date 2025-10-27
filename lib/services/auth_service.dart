@@ -31,6 +31,7 @@ class AuthService {
         uid: user.uid,
         email: user.email ?? '',
         displayName: user.displayName,
+        photoUrl: user.photoURL,
         role: null,
       );
 
@@ -217,6 +218,37 @@ class AuthService {
     );
   }
 
+  Future<void> updateLocation(String location) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw StateError('No authenticated user found');
+    }
+
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'location': location,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> updatePhotoUrl(String photoUrl) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw StateError('No authenticated user found');
+    }
+
+    await user.updatePhotoURL(photoUrl);
+    await _firestore.collection('users').doc(user.uid).set(
+      {
+        'photoUrl': photoUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> _ensureUserDocument(
     User user, {
     String? displayName,
@@ -263,6 +295,8 @@ class AuthService {
       {
         'email': user.email,
         'displayName': displayName,
+        'photoUrl': user.photoURL,
+        'location': null,
         'createdAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),

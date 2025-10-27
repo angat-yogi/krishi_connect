@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
 import '../../models/user_model.dart';
 import '../../services/db_service.dart';
+import '../../services/storage_service.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
 
@@ -82,12 +86,15 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
   Future<void> _showProductForm(
       BuildContext context, UserProfile profile) async {
     final db = context.read<DatabaseService>();
+    final storage = context.read<StorageService>();
     final messenger = ScaffoldMessenger.of(context);
     final nameController = TextEditingController();
     final quantityController = TextEditingController();
     final priceController = TextEditingController();
     final unitController = TextEditingController(text: 'kg');
     final formKey = GlobalKey<FormState>();
+    final picker = ImagePicker();
+    File? imageFile;
     bool isSubmitting = false;
 
     await showModalBottomSheet(
@@ -103,10 +110,30 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
           ),
           child: StatefulBuilder(
             builder: (context, setModalState) {
+              Future<void> pickImage() async {
+                final result = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 85,
+                );
+                if (result != null) {
+                  setModalState(() {
+                    imageFile = File(result.path);
+                  });
+                }
+              }
+
               Future<void> submit() async {
                 if (!formKey.currentState!.validate()) return;
                 setModalState(() => isSubmitting = true);
                 try {
+                  String? imageUrl;
+                  if (imageFile != null) {
+                    imageUrl = await storage.uploadProductImage(
+                      file: imageFile!,
+                      farmerId: profile.uid,
+                    );
+                  }
+
                   await db.createProduct(
                     farmerId: profile.uid,
                     name: nameController.text.trim(),
@@ -115,6 +142,7 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
                     unit: unitController.text.trim().isEmpty
                         ? null
                         : unitController.text.trim(),
+                    imageUrl: imageUrl,
                   );
                   if (mounted) Navigator.of(sheetContext).pop();
                 } catch (_) {
@@ -134,6 +162,31 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Center(
+                      child: GestureDetector(
+                        onTap: isSubmitting ? null : pickImage,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            height: 120,
+                            width: 120,
+                            color: Colors.grey[200],
+                            child: imageFile != null
+                                ? Image.file(imageFile!, fit: BoxFit.cover)
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.add_a_photo_outlined,
+                                          size: 32),
+                                      SizedBox(height: 8),
+                                      Text('Add photo'),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
                     Text(
                       'Add new inventory',
                       style: Theme.of(context).textTheme.titleLarge,
@@ -246,17 +299,7 @@ class _InventoryTab extends StatelessWidget {
             final product = products[index];
             return Card(
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  child: Text(
-                    _initialFor(product.name),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                leading: _ProductThumbnail(imageUrl: product.imageUrl),
                 title: Text(product.name),
                 subtitle: Text(
                   '${product.quantity} ${product.unit ?? ''} • NPR ${product.price.toStringAsFixed(2)}',
@@ -456,8 +499,54 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-String _initialFor(String value) {
-  final trimmed = value.trim();
-  if (trimmed.isEmpty) return '?';
-  return trimmed.substring(0, 1).toUpperCase();
+class _ProductThumbnail extends StatelessWidget {
+  const _ProductThumbnail({this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          'Coming\nSoon',
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Colors.grey[600]),
+        ),
+      ),
+    );
+
+    if (imageUrl == null || imageUrl!.isEmpty) {
+      return placeholder;
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl!,
+        width: 64,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => placeholder,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return SizedBox(
+            width: 64,
+            height: 64,
+            child:
+                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        },
+      ),
+    );
+  }
 }

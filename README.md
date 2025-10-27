@@ -8,6 +8,7 @@ KrishiConnect connects local farmers and shopkeepers with role-based dashboards 
 - Firebase project with iOS and Android apps registered
 - `google-services.json` in `android/app/`
 - `GoogleService-Info.plist` in `ios/Runner/`
+- iOS: ensure `NSPhotoLibraryUsageDescription` and `NSCameraUsageDescription` are set in `Info.plist`
 
 ## Configure Firebase secrets
 
@@ -50,3 +51,8 @@ flutter test
 ```
 
 Widget tests are currently skipped until Firebase mocks are added.
+
+## Image uploads
+
+- Producers can attach an optional photo to each inventory item; when absent, the UI renders a "Coming Soon" placeholder.
+- During sign up, non-Google accounts are prompted for profile photo and location. Photos are stored in Firebase Storage under `profile_photos/`.

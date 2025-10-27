@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/storage_service.dart';
 
 class ProfileDrawer extends StatefulWidget {
   const ProfileDrawer({super.key});
@@ -14,6 +18,9 @@ class ProfileDrawer extends StatefulWidget {
 class _ProfileDrawerState extends State<ProfileDrawer> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
+  final _locationController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+  File? _localPhoto;
   UserRole? _selectedRole;
   bool _isSaving = false;
 
@@ -29,6 +36,13 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
           selection: TextSelection.collapsed(offset: newText.length),
         );
       }
+      final newLocation = profile.location ?? '';
+      if (_locationController.text != newLocation) {
+        _locationController.value = TextEditingValue(
+          text: newLocation,
+          selection: TextSelection.collapsed(offset: newLocation.length),
+        );
+      }
       if (!_isSaving && profile.role != _selectedRole) {
         _selectedRole = profile.role;
       }
@@ -38,7 +52,20 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
   @override
   void dispose() {
     _displayNameController.dispose();
+    _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickProfileImage() async {
+    final result = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (result != null) {
+      setState(() {
+        _localPhoto = File(result.path);
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -47,6 +74,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     if (profile == null) return;
 
     final authService = context.read<AuthService>();
+    final storageService = context.read<StorageService>();
     final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _isSaving = true);
@@ -56,8 +84,26 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
         await authService.updateDisplayName(newName);
       }
 
+      final location = _locationController.text.trim();
+      if (location != profile.location && location.isNotEmpty) {
+        await authService.updateLocation(location);
+      }
+
       if (_selectedRole != null && _selectedRole != profile.role) {
         await authService.updateUserRole(_selectedRole!);
+      }
+
+      if (_localPhoto != null) {
+        final url = await storageService.uploadProfilePhoto(
+          file: _localPhoto!,
+          uid: profile.uid,
+        );
+        if (url != null) {
+          await authService.updatePhotoUrl(url);
+          setState(() {
+            _localPhoto = null;
+          });
+        }
       }
 
       messenger.showSnackBar(
@@ -86,18 +132,61 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                 child: ListView(
                   padding: const EdgeInsets.all(24),
                   children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        profileDisplayLabel(profile),
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      subtitle: Text(
-                        profileRoleLabel(profile),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: Colors.grey[700]),
+                    Center(
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: _isSaving ? null : _pickProfileImage,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 96,
+                                width: 96,
+                                color: Colors.grey[200],
+                                child: _localPhoto != null
+                                    ? Image.file(
+                                        _localPhoto!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : (profile.photoUrl != null &&
+                                            profile.photoUrl!.isNotEmpty)
+                                        ? Image.network(
+                                            profile.photoUrl!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : const Icon(
+                                            Icons.photo_camera_outlined,
+                                            size: 40,
+                                          ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            profileDisplayLabel(profile),
+                            style: Theme.of(context).textTheme.headlineSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                          Text(
+                            profileRoleLabel(profile),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: Colors.grey[700]),
+                          ),
+                          if ((profile.location ?? '').isNotEmpty)
+                            Text(
+                              profile.location!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          TextButton(
+                            onPressed: _isSaving ? null : _pickProfileImage,
+                            child: const Text('Change photo'),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -122,6 +211,20 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.mail_outline),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _locationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Location',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Location is required';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 24),
                     Text(

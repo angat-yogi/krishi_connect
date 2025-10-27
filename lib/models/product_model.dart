@@ -37,6 +37,7 @@ class Product {
     required this.price,
     required this.status,
     this.unit,
+    this.imageUrl,
     this.createdAt,
     this.updatedAt,
   });
@@ -48,6 +49,7 @@ class Product {
   final double price;
   final InventoryStatus status;
   final String? unit;
+  final String? imageUrl;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -59,6 +61,7 @@ class Product {
       'price': price,
       'status': status.key,
       'unit': unit,
+      'imageUrl': imageUrl,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -76,6 +79,7 @@ class Product {
       price: (data['price'] as num?)?.toDouble() ?? 0,
       status: InventoryStatusX.fromKey(data['status'] as String?),
       unit: data['unit'] as String?,
+      imageUrl: data['imageUrl'] as String?,
       createdAt: _dateTimeFrom(data['createdAt']),
       updatedAt: _dateTimeFrom(data['updatedAt']),
     );
@@ -88,6 +92,7 @@ class Product {
     double? price,
     InventoryStatus? status,
     String? unit,
+    String? imageUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -99,6 +104,7 @@ class Product {
       price: price ?? this.price,
       status: status ?? this.status,
       unit: unit ?? this.unit,
+      imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

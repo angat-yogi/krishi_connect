@@ -31,6 +31,8 @@ class UserProfile {
     required this.email,
     this.role,
     this.displayName,
+    this.photoUrl,
+    this.location,
     this.createdAt,
   });
 
@@ -38,12 +40,16 @@ class UserProfile {
   final String email;
   final UserRole? role;
   final String? displayName;
+  final String? photoUrl;
+  final String? location;
   final DateTime? createdAt;
 
   Map<String, dynamic> toMap() {
     return {
       'email': email,
       'displayName': displayName,
+      'photoUrl': photoUrl,
+      'location': location,
       'role': role?.key,
       'createdAt': createdAt,
     };
@@ -58,6 +64,8 @@ class UserProfile {
       uid: uid,
       email: data['email'] as String? ?? '',
       displayName: data['displayName'] as String?,
+      photoUrl: data['photoUrl'] as String?,
+      location: data['location'] as String?,
       role: UserRoleX.fromKey(data['role'] as String?),
       createdAt: _dateTimeFrom(data['createdAt']),
     );
@@ -67,6 +75,8 @@ class UserProfile {
     String? email,
     UserRole? role,
     String? displayName,
+    String? photoUrl,
+    String? location,
     DateTime? createdAt,
   }) {
     return UserProfile(
@@ -74,6 +84,8 @@ class UserProfile {
       email: email ?? this.email,
       role: role ?? this.role,
       displayName: displayName ?? this.displayName,
+      photoUrl: photoUrl ?? this.photoUrl,
+      location: location ?? this.location,
       createdAt: createdAt ?? this.createdAt,
     );
   }

@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/storage_service.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -20,6 +24,10 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _locationController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
+  File? _profileImage;
 
   bool _isLoading = false;
 
@@ -29,7 +37,20 @@ class _SignUpPageState extends State<SignUpPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickProfileImage() async {
+    final result = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (result != null) {
+      setState(() {
+        _profileImage = File(result.path);
+      });
+    }
   }
 
   Future<void> _register() async {
@@ -45,6 +66,20 @@ class _SignUpPageState extends State<SignUpPage> {
       final name = _nameController.text.trim();
       if (name.isNotEmpty) {
         await authService.updateDisplayName(name);
+      }
+      final location = _locationController.text.trim();
+      await authService.updateLocation(location);
+
+      final user = FirebaseAuth.instance.currentUser;
+      final storageService = context.read<StorageService>();
+      if (user != null && _profileImage != null) {
+        final url = await storageService.uploadProfilePhoto(
+          file: _profileImage!,
+          uid: user.uid,
+        );
+        if (url != null) {
+          await authService.updatePhotoUrl(url);
+        }
       }
 
       if (mounted) Navigator.of(context).pop();
@@ -86,6 +121,38 @@ class _SignUpPageState extends State<SignUpPage> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               SizedBox(height: 32.h),
+              Center(
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: _isLoading ? null : _pickProfileImage,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          height: 96,
+                          width: 96,
+                          color: Colors.grey[200],
+                          child: _profileImage != null
+                              ? Image.file(
+                                  _profileImage!,
+                                  fit: BoxFit.cover,
+                                )
+                              : const Icon(
+                                  Icons.photo_camera_outlined,
+                                  size: 40,
+                                ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    TextButton(
+                      onPressed: _isLoading ? null : _pickProfileImage,
+                      child: const Text('Upload profile photo'),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16.h),
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -137,6 +204,20 @@ class _SignUpPageState extends State<SignUpPage> {
                 validator: (value) {
                   if (value != _passwordController.text) {
                     return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 20.h),
+              TextFormField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  labelText: 'Location',
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Location is required';
                   }
                   return null;
                 },

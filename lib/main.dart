@@ -12,6 +12,7 @@ import 'pages/auth/login_page.dart';
 import 'pages/auth/signup_page.dart';
 import 'services/auth_service.dart';
 import 'services/db_service.dart';
+import 'services/storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,7 @@ class KrishiConnectApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<DatabaseService>(create: (_) => DatabaseService()),
+        Provider<StorageService>(create: (_) => StorageService()),
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
