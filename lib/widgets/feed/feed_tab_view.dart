@@ -465,10 +465,9 @@ class _PendingThreadCard extends StatelessWidget {
 
   Future<void> _approve(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    final db = context.read<DatabaseService>();
     try {
-      await context
-          .read<DatabaseService>()
-          .approveThread(threadId: thread.id, approverId: profile.uid);
+      await db.approveThread(threadId: thread.id, approverId: profile.uid);
       messenger.showSnackBar(
         const SnackBar(content: Text('Conversation approved.')),
       );
@@ -481,12 +480,11 @@ class _PendingThreadCard extends StatelessWidget {
 
   Future<void> _block(BuildContext context, String otherId) async {
     final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthService>();
+    final db = context.read<DatabaseService>();
     try {
-      final auth = context.read<AuthService>();
       await auth.blockUser(otherId);
-      await context
-          .read<DatabaseService>()
-          .markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
+      await db.markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
       final name = thread.participantNames[otherId] ?? 'user';
       messenger.showSnackBar(
         SnackBar(content: Text('Blocked $name.')),
@@ -640,12 +638,11 @@ class _ConversationCard extends StatelessWidget {
 
   Future<void> _block(BuildContext context, String otherId) async {
     final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthService>();
+    final db = context.read<DatabaseService>();
     try {
-      final auth = context.read<AuthService>();
       await auth.blockUser(otherId);
-      await context
-          .read<DatabaseService>()
-          .markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
+      await db.markThreadBlocked(threadId: thread.id, blockerId: profile.uid);
       final name = thread.participantNames[otherId] ?? 'user';
       messenger.showSnackBar(
         SnackBar(content: Text('Blocked $name.')),
@@ -659,12 +656,14 @@ class _ConversationCard extends StatelessWidget {
 
   Future<void> _unblock(BuildContext context, String otherId) async {
     final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthService>();
+    final db = context.read<DatabaseService>();
     try {
-      final auth = context.read<AuthService>();
       await auth.unblockUser(otherId);
-      await context
-          .read<DatabaseService>()
-          .markThreadUnblocked(threadId: thread.id, blockerId: profile.uid);
+      await db.markThreadUnblocked(
+        threadId: thread.id,
+        blockerId: profile.uid,
+      );
       final name = thread.participantNames[otherId] ?? 'user';
       messenger.showSnackBar(
         SnackBar(content: Text('Unblocked $name.')),
