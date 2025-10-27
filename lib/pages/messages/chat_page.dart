@@ -59,17 +59,13 @@ class _ChatPageState extends State<ChatPage> {
 
           final isPending = thread.isPendingFor(widget.currentUserId);
           final blockedByMe = thread.blockedBy.contains(widget.currentUserId);
-          final blockedByOther =
-              thread.blockedBy.isNotEmpty && !blockedByMe;
-          final canSend = !isPending && !blockedByMe && !blockedByOther;
+          final canSend = !isPending && !blockedByMe;
 
-          final statusText = blockedByOther
-              ? 'This user has blocked you. You can view past messages but cannot reply.'
-              : blockedByMe
-                  ? 'You blocked this user. Unblock them from Messages to continue chatting.'
-                  : isPending
-                      ? 'Approve this conversation from Messages to reply.'
-                      : null;
+          final statusText = blockedByMe
+              ? 'You blocked this user. Unblock them from Messages to continue chatting.'
+              : isPending
+                  ? 'Approve this conversation from Messages to reply.'
+                  : null;
 
           return Column(
             children: [
@@ -96,7 +92,12 @@ class _ChatPageState extends State<ChatPage> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const LoadingView();
                     }
-                    final messages = snapshot.data ?? [];
+                    final allMessages = snapshot.data ?? [];
+                    final messages = blockedByMe
+                        ? allMessages
+                            .where((m) => m.senderId == widget.currentUserId)
+                            .toList()
+                        : allMessages;
                     if (messages.isEmpty) {
                       return const Center(
                         child: Text('Start the conversation…'),

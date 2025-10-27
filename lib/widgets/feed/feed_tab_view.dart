@@ -328,11 +328,13 @@ class MessagesTabView extends StatelessWidget {
         final pending = threads
             .where((thread) => thread.isPendingFor(profile.uid))
             .toList();
-        final blocked =
-            threads.where((thread) => thread.blockedBy.isNotEmpty).toList();
+        final blocked = threads
+            .where((thread) => thread.blockedBy.contains(profile.uid))
+            .toList();
         final active = threads
             .where((thread) =>
-                !thread.isPendingFor(profile.uid) && thread.blockedBy.isEmpty)
+                !thread.isPendingFor(profile.uid) &&
+                !thread.blockedBy.contains(profile.uid))
             .toList();
 
         if (pending.isEmpty && active.isEmpty && blocked.isEmpty) {
@@ -521,16 +523,14 @@ class _ConversationCard extends StatelessWidget {
     final otherName =
         thread.participantNames[otherId] ?? 'KrishiConnect partner';
     final blockedByMe = thread.blockedBy.contains(profile.uid);
-    final blockedByOther =
-        thread.blockedBy.isNotEmpty && !blockedByMe && showBlockedState;
+    final blockedByOther = thread.blockedBy.isNotEmpty && !blockedByMe;
+    final showOtherNotice = showBlockedState && blockedByOther;
     final subtitle = blockedByMe
         ? 'You blocked this user. Unblock to resume the chat.'
-        : blockedByOther
-            ? 'This user blocked you.'
-            : thread.lastMessage ?? 'Tap to chat';
+        : thread.lastMessage ?? 'Tap to chat';
 
     return Card(
-      color: blockedByOther ? theme.colorScheme.surfaceVariant : null,
+      color: showOtherNotice ? theme.colorScheme.surfaceVariant : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -542,23 +542,18 @@ class _ConversationCard extends StatelessWidget {
                   child: Text(
                     blockedByMe
                         ? '$otherName (blocked)'
-                        : blockedByOther
-                            ? '$otherName (blocked you)'
+                        : showOtherNotice
+                            ? '$otherName (blocked)'
                             : otherName,
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                if (!blockedByOther)
+                if (!blockedByMe)
                   IconButton(
-                    tooltip:
-                        blockedByMe ? 'Unblock user' : 'Conversation options',
-                    onPressed: blockedByMe
-                        ? () => _unblock(context, otherId)
-                        : () => _showMenu(context, otherId),
-                    icon: Icon(
-                      blockedByMe ? Icons.lock_open : Icons.more_vert,
-                    ),
+                    tooltip: 'Conversation options',
+                    onPressed: () => _showMenu(context, otherId),
+                    icon: const Icon(Icons.more_vert),
                   ),
               ],
             ),
@@ -567,21 +562,13 @@ class _ConversationCard extends StatelessWidget {
               subtitle,
               style: theme.textTheme.bodyMedium,
             ),
-            if (!blockedByMe && !blockedByOther)
+            if (!blockedByMe)
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: () => _openChat(context, otherId, otherName),
                   icon: const Icon(Icons.chat_bubble_outline),
                   label: const Text('Open chat'),
-                ),
-              )
-            else if (blockedByOther)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => _viewProfile(context, otherId),
-                  child: const Text('View profile'),
                 ),
               ),
             if (blockedByMe)
@@ -590,6 +577,14 @@ class _ConversationCard extends StatelessWidget {
                 child: TextButton(
                   onPressed: () => _unblock(context, otherId),
                   child: const Text('Unblock'),
+                ),
+              ),
+            if (blockedByMe)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => _viewProfile(context, otherId),
+                  child: const Text('View profile'),
                 ),
               ),
           ],

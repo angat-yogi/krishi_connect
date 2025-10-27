@@ -284,15 +284,16 @@ class DatabaseService {
       throw MessagingException('Unable to load participants.');
     }
 
-    if (currentProfile.blockedUsers.contains(otherUid) ||
-        otherProfile.blockedUsers.contains(currentUid)) {
+    if (currentProfile.blockedUsers.contains(otherUid)) {
       throw MessagingException(
-        'Messaging is blocked between these accounts.',
+        'You blocked this account. Unblock to resume messaging.',
       );
     }
 
     final isMutualFollow = currentProfile.following.contains(otherUid) &&
         otherProfile.following.contains(currentUid);
+    final otherHasBlockedCurrent =
+        otherProfile.blockedUsers.contains(currentUid);
 
     final doc = await docRef.get();
     if (!doc.exists) {
@@ -301,8 +302,10 @@ class DatabaseService {
         'participantNames': participantNames,
         'lastMessage': null,
         'updatedAt': FieldValue.serverTimestamp(),
-        'pendingParticipants': isMutualFollow ? <String>[] : <String>[otherUid],
-        'blockedBy': const <String>[],
+        'pendingParticipants':
+            isMutualFollow || otherHasBlockedCurrent ? <String>[] : <String>[otherUid],
+        'blockedBy':
+            otherHasBlockedCurrent ? <String>[otherUid] : const <String>[],
       });
     } else {
       final updates = <String, dynamic>{
@@ -310,7 +313,10 @@ class DatabaseService {
       };
       if (isMutualFollow) {
         updates['pendingParticipants'] =
-            FieldValue.arrayRemove([currentUid, otherUid]);
+          FieldValue.arrayRemove([currentUid, otherUid]);
+      }
+      if (otherHasBlockedCurrent) {
+        updates['blockedBy'] = FieldValue.arrayUnion([otherUid]);
       }
       await docRef.set(updates, SetOptions(merge: true));
     }
@@ -329,8 +335,8 @@ class DatabaseService {
 
     final thread = ChatThread.fromFirestore(threadSnapshot);
 
-    if (thread.blockedBy.isNotEmpty) {
-      throw MessagingException('Conversation has been blocked.');
+    if (thread.blockedBy.contains(senderId)) {
+      throw MessagingException('You blocked this conversation.');
     }
 
     if (thread.isPendingFor(senderId)) {
@@ -347,10 +353,9 @@ class DatabaseService {
       throw MessagingException('Unable to send message right now.');
     }
 
-    if (senderProfile.blockedUsers.contains(otherId) ||
-        otherProfile.blockedUsers.contains(senderId)) {
+    if (senderProfile.blockedUsers.contains(otherId)) {
       throw MessagingException(
-        'Messaging is blocked between these accounts.',
+        'You blocked this account. Unblock to resume messaging.',
       );
     }
 
