@@ -284,80 +284,141 @@ class _InventoryTab extends StatelessWidget {
           return const LoadingView();
         }
         final products = snapshot.data ?? [];
-        if (products.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.inventory_2_outlined,
-            message: 'No inventory yet.\nTap "Add Inventory" to get started.',
-          );
-        }
+        final tabs = [
+          {
+            'label': 'All',
+            'items': products,
+          },
+          {
+            'label': InventoryStatus.inStock.label,
+            'items': products
+                .where((p) => p.status == InventoryStatus.inStock)
+                .toList(),
+          },
+          {
+            'label': InventoryStatus.pending.label,
+            'items': products
+                .where((p) => p.status == InventoryStatus.pending)
+                .toList(),
+          },
+          {
+            'label': InventoryStatus.sold.label,
+            'items': products
+                .where((p) => p.status == InventoryStatus.sold)
+                .toList(),
+          },
+        ];
 
-        return ListView.separated(
-          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-          itemCount: products.length,
-          separatorBuilder: (_, __) => SizedBox(height: 12.h),
-          itemBuilder: (context, index) {
-            final product = products[index];
-            return Card(
-              child: ListTile(
-                leading: _ProductThumbnail(imageUrl: product.imageUrl),
-                title: Text(product.name),
-                subtitle: Text(
-                  '${product.quantity} ${product.unit ?? ''} • NPR ${product.price.toStringAsFixed(2)}',
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'in_stock':
-                        context.read<DatabaseService>().updateProduct(
-                              productId: product.id,
-                              status: InventoryStatus.inStock,
-                            );
-                        break;
-                      case 'pending':
-                        context.read<DatabaseService>().updateProduct(
-                              productId: product.id,
-                              status: InventoryStatus.pending,
-                            );
-                        break;
-                      case 'sold':
-                        context.read<DatabaseService>().updateProduct(
-                              productId: product.id,
-                              status: InventoryStatus.sold,
-                            );
-                        break;
-                      case 'delete':
-                        context
-                            .read<DatabaseService>()
-                            .deleteProduct(product.id);
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'in_stock',
-                      child: Text('Mark as In stock'),
-                    ),
-                    PopupMenuItem(
-                      value: 'pending',
-                      child: Text('Mark as Pending'),
-                    ),
-                    PopupMenuItem(
-                      value: 'sold',
-                      child: Text('Mark as Sold'),
-                    ),
-                    PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
+        return DefaultTabController(
+          length: tabs.length,
+          child: Column(
+            children: [
+              TabBar(
+                isScrollable: true,
+                labelColor: Theme.of(context).colorScheme.primary,
+                indicatorColor: Theme.of(context).colorScheme.primary,
+                tabs: [
+                  for (final tab in tabs) Tab(text: tab['label'] as String),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    for (final tab in tabs)
+                      (tab['items'] as List<Product>).isEmpty
+                          ? const _EmptyState(
+                              icon: Icons.inventory_2_outlined,
+                              message:
+                                  'No inventory yet.\nTap "Add Inventory" to get started.',
+                            )
+                          : ListView.separated(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 16.w,
+                                vertical: 24.h,
+                              ),
+                              itemCount: (tab['items'] as List<Product>).length,
+                              separatorBuilder: (_, __) =>
+                                  SizedBox(height: 12.h),
+                              itemBuilder: (context, index) {
+                                final product =
+                                    (tab['items'] as List<Product>)[index];
+                                return Card(
+                                  child: ListTile(
+                                    leading: _ProductThumbnail(
+                                      imageUrl: product.imageUrl,
+                                    ),
+                                    title: Text(product.name),
+                                    subtitle: Text(
+                                      '${product.quantity} ${product.unit ?? ''} • NPR ${product.price.toStringAsFixed(2)}',
+                                    ),
+                                    trailing: PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        switch (value) {
+                                          case 'in_stock':
+                                            context
+                                                .read<DatabaseService>()
+                                                .updateProduct(
+                                                  productId: product.id,
+                                                  status:
+                                                      InventoryStatus.inStock,
+                                                );
+                                            break;
+                                          case 'pending':
+                                            context
+                                                .read<DatabaseService>()
+                                                .updateProduct(
+                                                  productId: product.id,
+                                                  status:
+                                                      InventoryStatus.pending,
+                                                );
+                                            break;
+                                          case 'sold':
+                                            context
+                                                .read<DatabaseService>()
+                                                .updateProduct(
+                                                  productId: product.id,
+                                                  status: InventoryStatus.sold,
+                                                );
+                                            break;
+                                          case 'delete':
+                                            context
+                                                .read<DatabaseService>()
+                                                .deleteProduct(product.id);
+                                            break;
+                                        }
+                                      },
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(
+                                          value: 'in_stock',
+                                          child: Text('Mark as In stock'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'pending',
+                                          child: Text('Mark as Pending'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'sold',
+                                          child: Text('Mark as Sold'),
+                                        ),
+                                        PopupMenuDivider(),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text(
+                                            'Delete',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                   ],
                 ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
