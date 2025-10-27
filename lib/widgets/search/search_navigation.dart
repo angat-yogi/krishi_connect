@@ -8,12 +8,15 @@ import '../../models/user_model.dart';
 import '../../pages/messages/chat_page.dart';
 import '../../pages/profile/user_profile_page.dart';
 import '../../services/db_service.dart';
+import '../../services/analytics_service.dart';
 
 Future<void> handleSearchSelection(
   BuildContext context, {
   required SearchResultItem result,
   required DatabaseService databaseService,
   required UserProfile currentUser,
+  required AnalyticsService analyticsService,
+  required EngagementType engagementType,
 }) async {
   switch (result.type) {
     case SearchResultType.user:
@@ -23,12 +26,32 @@ Future<void> handleSearchSelection(
           builder: (_) => UserProfilePage(uid: profile.uid),
         ),
       );
+      await analyticsService.logEngagement(
+        userId: currentUser.uid,
+        type: engagementType,
+        targetType: EngagementTargetType.user,
+        targetId: profile.uid,
+        metadata: {
+          'displayName': profileDisplayLabel(profile),
+          'role': profile.role?.label,
+        },
+      );
       break;
     case SearchResultType.product:
       final product = result.payloadAs<Product>();
       await showModalBottomSheet(
         context: context,
         builder: (sheetContext) => _ProductQuickView(product: product),
+      );
+      await analyticsService.logEngagement(
+        userId: currentUser.uid,
+        type: engagementType,
+        targetType: EngagementTargetType.product,
+        targetId: product.id,
+        metadata: {
+          'name': product.name,
+          'farmerId': product.farmerId,
+        },
       );
       break;
     case SearchResultType.order:
@@ -37,6 +60,16 @@ Future<void> handleSearchSelection(
         context: context,
         builder: (sheetContext) =>
             _OrderQuickView(order: payload.order, product: payload.product),
+      );
+      await analyticsService.logEngagement(
+        userId: currentUser.uid,
+        type: engagementType,
+        targetType: EngagementTargetType.order,
+        targetId: payload.order.id,
+        metadata: {
+          'status': payload.order.status.key,
+          'productId': payload.order.productId,
+        },
       );
       break;
     case SearchResultType.feedPost:
@@ -49,6 +82,16 @@ Future<void> handleSearchSelection(
           databaseService: databaseService,
           currentUser: currentUser,
         ),
+      );
+      await analyticsService.logEngagement(
+        userId: currentUser.uid,
+        type: engagementType,
+        targetType: EngagementTargetType.feedPost,
+        targetId: post.id,
+        metadata: {
+          'authorId': post.authorId,
+          'locationKey': post.location.toLowerCase(),
+        },
       );
       break;
   }

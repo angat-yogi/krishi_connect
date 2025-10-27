@@ -4,9 +4,12 @@ import 'package:provider/provider.dart';
 
 import '../../models/chat_models.dart';
 import '../../models/feed_post.dart';
+import '../../models/recommendation.dart';
 import '../../models/user_model.dart';
+import '../../services/analytics_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/db_service.dart';
+import '../../services/recommendation_service.dart';
 import '../../widgets/loading_view.dart';
 import '../../pages/feed/create_feed_post_page.dart';
 import '../../pages/messages/chat_page.dart';
@@ -42,25 +45,48 @@ class FeedTabView extends StatelessWidget {
           return const LoadingView();
         }
         final posts = snapshot.data ?? [];
+        final showRecommendations = !ownPostsOnly;
+
         if (posts.isEmpty && !ownPostsOnly) {
-          return const _ErrorNotice(
-            icon: Icons.dynamic_feed_outlined,
-            message:
-                'Market is quiet for now. Check back soon for new requests.',
+          return ListView(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
+            children: const [
+              _FeedRecommendationSection.emptyPlaceholder(),
+              SizedBox(height: 16),
+              _ErrorNotice(
+                icon: Icons.dynamic_feed_outlined,
+                message:
+                    'Market is quiet for now. Check back soon for new requests.',
+              ),
+            ],
           );
         }
 
         final list = List<FeedPost>.from(posts);
+        final baseItems = <Widget>[];
+        if (ownPostsOnly) {
+          baseItems.add(_CreatePostCard(profile: profile));
+        }
+        baseItems.addAll(
+          list.map(
+            (post) => FeedPostCard(profile: profile, post: post),
+          ),
+        );
+
+        final itemCount = baseItems.length + (showRecommendations ? 1 : 0);
+
         return ListView.separated(
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-          itemCount: ownPostsOnly ? list.length + 1 : list.length,
+          itemCount: itemCount,
           separatorBuilder: (_, __) => SizedBox(height: 16.h),
           itemBuilder: (context, index) {
-            if (ownPostsOnly && index == 0) {
-              return _CreatePostCard(profile: profile);
+            if (showRecommendations) {
+              if (index == 0) {
+                return _FeedRecommendationSection(profile: profile);
+              }
+              return baseItems[index - 1];
             }
-            final post = ownPostsOnly ? list[index - 1] : list[index];
-            return FeedPostCard(profile: profile, post: post);
+            return baseItems[index];
           },
         );
       },
@@ -69,14 +95,21 @@ class FeedTabView extends StatelessWidget {
 }
 
 class FeedPostCard extends StatelessWidget {
-  const FeedPostCard({super.key, required this.profile, required this.post});
+  const FeedPostCard({
+    super.key,
+    required this.profile,
+    required this.post,
+    this.highlightReasons,
+  });
 
   final UserProfile profile;
   final FeedPost post;
+  final List<String>? highlightReasons;
 
   @override
   Widget build(BuildContext context) {
     final db = context.read<DatabaseService>();
+    final analytics = context.read<AnalyticsService>();
     final theme = Theme.of(context);
     final createdText = post.createdAt != null
         ? 'Posted ${timeAgo(post.createdAt!)}'
@@ -119,12 +152,39 @@ class FeedPostCard extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => UserProfilePage(uid: post.authorId),
                     ),
-                  ),
+                  ).then((_) async {
+                    await analytics.logEngagement(
+                      userId: profile.uid,
+                      type: EngagementType.profileView,
+                      targetType: EngagementTargetType.user,
+                      targetId: post.authorId,
+                      metadata: {
+                        'displayName': post.authorName,
+                        'context': 'feed_card',
+                      },
+                    );
+                  }),
                   child: const Text('View profile'),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            if (highlightReasons?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: highlightReasons!
+                      .map(
+                        (reason) => Chip(
+                          label: Text(reason),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
             Text(
               post.description,
               style: theme.textTheme.bodyMedium,
@@ -208,6 +268,7 @@ class FeedPostCard extends StatelessWidget {
   ) async {
     final messenger = ScaffoldMessenger.of(context);
     final controller = TextEditingController();
+    final analytics = context.read<AnalyticsService>();
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -245,6 +306,17 @@ class FeedPostCard extends StatelessWidget {
                     authorName: profileDisplayLabel(profile),
                     text: text,
                   );
+                  await analytics.logEngagement(
+                    userId: profile.uid,
+                    type: EngagementType.feedInteraction,
+                    targetType: EngagementTargetType.feedPost,
+                    targetId: post.id,
+                    metadata: {
+                      'authorId': post.authorId,
+                      'locationKey': post.location.toLowerCase(),
+                      'interaction': 'comment',
+                    },
+                  );
                   if (context.mounted) {
                     Navigator.of(sheetContext).pop();
                     messenger.showSnackBar(
@@ -278,16 +350,27 @@ class FeedPostCard extends StatelessWidget {
     };
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final threadId = await db.createOrGetThread(
-        currentUid: profile.uid,
-        otherUid: post.authorId,
-        participantNames: participantNames,
-      );
-      if (!context.mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChatPage(
-            threadId: threadId,
+    final threadId = await db.createOrGetThread(
+      currentUid: profile.uid,
+      otherUid: post.authorId,
+      participantNames: participantNames,
+    );
+    await context.read<AnalyticsService>().logEngagement(
+          userId: profile.uid,
+          type: EngagementType.feedInteraction,
+          targetType: EngagementTargetType.feedPost,
+          targetId: post.id,
+          metadata: {
+            'authorId': post.authorId,
+            'locationKey': post.location.toLowerCase(),
+            'interaction': 'message',
+          },
+        );
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          threadId: threadId,
             currentUserId: profile.uid,
             otherUserId: post.authorId,
             otherDisplayName: post.authorName,
@@ -716,6 +799,75 @@ class _ConversationCard extends StatelessWidget {
   void _viewProfile(BuildContext context, String uid) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+    );
+  }
+}
+
+class _FeedRecommendationSection extends StatelessWidget {
+  const _FeedRecommendationSection({required this.profile});
+
+  const _FeedRecommendationSection.emptyPlaceholder() : profile = null;
+
+  final UserProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    if (profile == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Recommended for you',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: 8),
+          Text('No recommendations yet.'),
+        ],
+      );
+    }
+
+    final recommendationService = context.read<RecommendationService>();
+
+    return FutureBuilder<List<FeedRecommendation>>(
+      future: recommendationService.recommendFeedPosts(
+        currentUser: profile!,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 56,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
+        final data = snapshot.data ?? const [];
+        if (data.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Recommended for you',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 12.h),
+            ...data.map(
+              (rec) => FeedPostCard(
+                profile: profile!,
+                post: rec.post,
+                highlightReasons: rec.reasons,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

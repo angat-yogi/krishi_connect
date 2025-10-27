@@ -13,6 +13,7 @@ import '../../services/storage_service.dart';
 import '../../widgets/loading_view.dart';
 import '../../widgets/profile_drawer.dart';
 import '../../models/search_result.dart';
+import '../../services/analytics_service.dart';
 import '../../services/search_history_store.dart';
 import '../../services/search_service.dart';
 import '../../widgets/feed/feed_tab_view.dart';
@@ -131,6 +132,8 @@ class _FarmerDashboardPageState extends State<FarmerDashboardPage> {
       result: result,
       databaseService: context.read<DatabaseService>(),
       currentUser: profile,
+      analyticsService: context.read<AnalyticsService>(),
+      engagementType: EngagementType.searchSelection,
     );
   }
 

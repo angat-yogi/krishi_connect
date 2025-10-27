@@ -7,6 +7,7 @@ import '../../models/product_model.dart';
 import '../../models/user_model.dart';
 import '../../models/search_result.dart';
 import '../../services/db_service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/search_history_store.dart';
 import '../../services/search_service.dart';
 import '../../pages/feed/create_feed_post_page.dart';
@@ -145,6 +146,8 @@ class _ShopkeeperDashboardPageState extends State<ShopkeeperDashboardPage> {
       result: result,
       databaseService: context.read<DatabaseService>(),
       currentUser: profile,
+      analyticsService: context.read<AnalyticsService>(),
+      engagementType: EngagementType.searchSelection,
     );
   }
 
